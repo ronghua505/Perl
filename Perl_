@@ -1,0 +1,376 @@
+#!/usr/bin/env perl
+use File::Copy;
+#!/usr/bin/env perl
+#!/usr/bin/env perl
+use File::Copy;
+use File::Path;
+#use utf8;
+use open ":encoding(gbk)", ":std";
+print "select catagory type, 1:Vcoefxxx/VDDxx_xVx/VIHLR/VOHLR, 2:Vcoefxxx/VIHLR/VOHLR/VDDxx_xVx\n";
+$CataFlag=<stdin>;
+chomp($CataFlag);
+ mkpath('./output/', 1, 0777);
+ mkpath('./deleted_ASCII_Code/', 1, 0777);
+	die "Fail to read Patterns.txt\n"		  if (!open (FILE_Patterns,"<./input/Patterns.txt"));
+	die "Fail to read DC_power.txt\n"		  if (!open (FILE_DC_Power,"<./input/DC_Power.txt"));
+	die "Fail to read DC_Specs.txt\n"		  if (!open (FILE_DC_Specs,"<./input/DC Specs.txt"));
+	die "Fail to read pinseq.txt\n"		  if (!open (FILE_pinseq,"<./input/pinseq.txt"));
+	die "Fail to read Power_pin_list.txt\n"		  if (!open (FILE_Power_pin_list,"<./input/Power_pin_list_value.txt"));
+	die "Fail to read DC_SPECS_STANDARD_VDDN.txt\n"		  if (!open (FILE_DC_SPECS_STANDARD_VDDN,"<./input/DC_SPECS_STANDARD_VDDN.txt"));
+	die "Fail to read CFG.txt \n"	  if(!open FILE_CFG,"<CFG.txt");
+	die "Fail to create Pattern Sets\n"	  if(!open FILE_PatSets,">./output/Pattern Sets.txt");
+	die "Fail to read DC_Specs.txt\n"		  if (!open (FILE_DC_Specs_out,">./output/DC Specs.txt"));
+	die "Fail to debug_output.txt\n"		  if (!open (FILE_debug_out,">./output/debug_output.txt"));
+	die "Fail to Test_Instances_DFT.txt\n"		  if (!open (FILE_TestInstanceDFT,">./output/Test_Instances_DFT.txt"));
+	die "Fail to ForEZA10.txt\n"		  if (!open (FILE_ForEZA10,">./output/ForEZA10.txt"));
+# create patterns 
+print FILE_PatSets "DTPatternSetSheet,version=2.2:platform=Jaguar:toprow=-1:leftcol=-1:rightcol=-1	Pattern Sets\n\n	Pattern Set	TD Group	Time Domain	Enable	File/Group Name	Burst	Start Label	Stop Label	Comment\n";
+while(<FILE_Patterns>)
+{
+	$templine=$_;
+	$templine=~s/^ +//;
+	$templine=~s/\n$//;
+	chomp($templine);
+	if($templine ne "")  #防止patterns文件里有空行的情况
+	{
+			@temparry=split(/\s+/,$templine);
+			if($#temparry==0)
+				{
+					if( $temparry[0]=~/(\w+.+)\_R\d+\_[^\_]+(\_*.*)/)   #BSCAN_R01_HI6290V100
+						{
+							 $PatFileName="$1";
+							 $PatSetName="$templine\_Burst";
+							if(not -e './output/PAT/$1')
+									{ mkpath("./output/PAT/$1", 1, 0777);}
+										print FILE_PatSets "	$PatSetName				.\\PAT\\$PatFileName\\$temparry[0].tar.gz	no\n";
+							$tempTIM="TIM_".$PatFileName;			
+
+						}
+										push(@InstancaArry,$PatSetName);
+										push(@TIMArry,$tempTIM);
+				}
+			else
+				{
+					for($i=0;$i<=$#temparry;$i++)
+						{
+							if( $temparry[$i]=~/(\w+.+)\_(R\d+)\_HI6290V100\_(.*)\_setup\_*(.*)/)   #CHAIN_R01_HI6290V100_ananke_full_setup
+								{
+									$SetupVersion=$2;
+									$SetupSuffix=$4;
+									$tempTIM="TIM_".$1;		
+									}
+							if( $temparry[$i]=~/(\w+.+)\_(R\d+)\_HI6290V100\_*(.*)\_setup$/)   #IDDQ_R01_HI6290V100_setup 	IDDQ_R01_HI6290V100_vector
+								{
+									$SetupVersion=$2;
+									$SetupSuffix="";
+									$tempTIM="TIM_".$1;		
+									}
+							if( $temparry[$i]=~/(\w+.+)\_(R\d+)\_HI6290V100\_(.*)\_vector\_*(.*)/)#~/(\w+.+)\_(R\d+)\_HI6290V100\_(.*)\_vector\_(.*)/)   #CHAIN_R01_HI6290V100_ananke_full_vector
+								{
+									$VectorPat=$1;
+									$VectorVersion=$2;
+		 
+									$VectorCotent=$3;
+									$VectorSuffix=$4;
+									#print	"$VectorSuffix\n";
+								}
+							if( $temparry[$i]=~/(\w+.+)\_(R\d+)\_HI6290V100\_*(.*)\_vector$/)#IDDQ_R01_HI6290V100_setup 	IDDQ_R01_HI6290V100_vector
+								{
+									$VectorPat=$1;
+									#print "$VectorPat\n";
+									$VectorVersion=$2;
+		 
+									$VectorCotent=$3;
+									$VectorSuffix="";
+									#print	"$VectorSuffix\n";
+								}
+						}
+					 $PatSetName="$VectorPat\_HI6290V100\_$VectorCotent\_$SetupSuffix\_S$SetupVersion\_V$VectorVersion\_burst";		#TRANS_HI6290V100_ananke_full_P1_1396_0V8_0V7_SR01_VR01_burst	
+						#print  "$PatSetName\n";
+					 $PatFileName="$VectorPat"; #"$VectorPat\_HI6290V100\_$VectorCotent\_$VectorSuffix\_$SetupSuffix=$4\_burst"; #TRANS_R01_HI6290V100_ao_fix_full_setup_1920_peri_0v8_0v75	TRANS_R01_HI6290V100_ao_fix_full_vector_P1
+					if($SetupSuffix eq "" and  $VectorSuffix eq "")	
+					{
+						$PatSetName="$VectorPat\_HI6290V100\_$VectorCotent\_S$SetupVersion\_V$VectorVersion\_burst";		#TRANS_HI6290V100_ananke_full_P1_1396_0V8_0V7_SR01_VR01_burst	
+					}	
+					elsif($VectorSuffix eq ""and $SetupSuffix ne "")
+					{
+						 $PatSetName="$VectorPat\_HI6290V100\_$VectorCotent\_$SetupSuffix\_S$SetupVersion\_V$VectorVersion\_burst";		#TRANS_HI6290V100_ananke_full_P1_1396_0V8_0V7_SR01_VR01_burst	
+		
+					}
+					elsif($SetupSuffix eq "" and $VectorSuffix ne "")	
+					{
+						$PatSetName="$VectorPat\_HI6290V100\_$VectorCotent\_$VectorSuffix\_S$SetupVersion\_V$VectorVersion\_burst";		#TRANS_HI6290V100_ananke_full_P1_1396_0V8_0V7_SR01_VR01_burst	
+					}
+		
+					elsif($SetupSuffix ne "" and $VectorSuffix ne "")
+					{
+						$PatSetName="$VectorPat\_HI6290V100\_$VectorCotent\_$VectorSuffix\_$SetupSuffix\_S$SetupVersion\_V$VectorVersion\_burst";		#TRANS_HI6290V100_ananke_full_P1_1396_0V8_0V7_SR01_VR01_burst	
+					}					
+					if(not -e './output/PAT/$VectorPat')
+							{ mkpath("./output/PAT/$VectorPat", 1, 0777);}
+					for($i=0;$i<=$#temparry;$i++)
+						{
+							print FILE_PatSets "	$PatSetName				.\\PAT\\$PatFileName\\$temparry[$i].tar.gz	yes\n";
+						}			
+					push(@InstancaArry,$PatSetName);	
+					push(@TIMArry,$tempTIM);
+				}
+		}
+}
+
+close FILE_Patterns;
+$line_count=0;
+while(<FILE_Power_pin_list>)  #读取标准电压表
+{
+	$line_count++;
+	$templine=$_;
+	$templine=~s/^ +//;
+	$templine=~s/\n$//;
+	if($line_count==1)
+		{@powerpinarry=split(/\t/,$templine);}
+	elsif($line_count==2)
+		{@powerpinvaluearry=split(/\t/,$templine); }
+}
+close Power_pin_list;
+$line_count=0;
+while(<FILE_pinseq>)  #读取DC_SPECS的标准电压的顺序
+{
+	$line_count++;
+	$templine=$_;
+	$templine=~s/^ +//;
+	$templine=~s/\n$//;
+  push(@pinseq,$templine);
+}
+close FILE_pinseq;
+#print "\@pinseq:@pinseq";
+for($i=0;$i<=$#powerpinarry;$i++)
+{
+		for($j=0;$j<=$#pinseq;$j++)
+		{
+				if($powerpinarry[$i] eq $pinseq[$j])
+						{push(@matchpinseq,$j);}
+		}
+}
+
+
+
+while(<FILE_DC_Power>)    #此函数目的是把客户给的电压与标准电压表做比较，然后根据不同会生成相应的catagory
+{
+	$tempstr="VDDN/VIHLR/VOHLR";
+	$tempstr1="";
+	$tempstr2="";
+	$tempstr3="";
+	$tempstra10="";
+	$templine=$_;
+	$templine=~s/^ +//;
+	$templine=~s/\n$//;
+	chomp($templine);
+	@DCsearcharry=split(/\t+/,$templine);
+	#print $templine;
+	for($i=0;$i<=$#DCsearcharry;$i++)
+				{
+					if($i>=2)
+						{
+									if($DCsearcharry[$i]==$powerpinvaluearry[$i-2])      
+									{}
+									else
+									{
+										$tempstr1=$DCsearcharry[$i];
+										$tempstra10=$tempstra10."$powerpinarry[$i-2]\/".$tempstr1."/";								
+										$tempstr1=~tr/\./P/;
+										$tempstr2=$tempstr2."\/$powerpinarry[$i-2]\_".$tempstr1."V";
+
+
+										$tempstr3=$tempstr3."$matchpinseq[$i-2]/$DCsearcharry[$i]/";
+
+										push(@mismatchpin,$tempstr);}
+						}
+					}
+  if($tempstr3 ne "")
+  {push(@AddSpecCatValue,$tempstr3);}
+  if($tempstr2 ne "")
+  {
+  	push(@eza10Cat,"VDDN$tempstr2"."/VIHLR/VOHLR");
+		push(@eza10CatValue,"$tempstra10");
+  	if($CataFlag eq "1")
+  	{
+		  push(@AddSpecCat,"VDDN/"."$tempstr2"."/VIHLR/VOHLR");
+		  push(@AddSpecCatAll,"VDDN/"."$tempstr2"."/VIHLR/VOHLR");
+		}
+		if($CataFlag eq "2")
+		{
+		  push(@AddSpecCat,"$tempstr$tempstr2");
+		  push(@AddSpecCatAll,"$tempstr$tempstr2");			
+		}
+  }
+  else 
+  {push(@AddSpecCatAll,"VDDN/VIHLR/VOHLR");}
+
+}
+
+close FILE_DC_Power;
+
+
+@CataVal=grep{++$count{$_}<2;} @AddSpecCatValue; #查找重复的catagory value，并且多个重复的只生成一个catagory
+@CataValName=grep{++$count{$_}<2;} @AddSpecCat; #查找重复的catagory name，并且多个重复的只生成一个catagory
+
+
+@uniqueeza10CatValue=grep{++$count{$_}<2;} @eza10CatValue; #查找重复的catagory value，并且多个重复的只生成一个catagory
+@uniqueeza10Cat=grep{++$count{$_}<2;} @eza10Cat; #查找重复的catagory name，并且多个重复的只生成一个catagory
+foreach(@CataVal)
+{
+print	FILE_debug_out "$_\n";
+}
+@DCSPECVDDN=(<FILE_DC_SPECS_STANDARD_VDDN>);
+close FILE_DC_SPECS_STANDARD_VDDN;
+$linecount=0;
+
+while(<FILE_DC_Specs>)    #生成新的dc specs
+{
+
+	$templine=$_;
+	if($linecount<=1)
+		{print FILE_DC_Specs_out "$templine";}	
+	$templine=~s/^ +//;
+	$templine=~s/\n+$//;
+	$templine=~s/\t+$//;
+	$tempstr=$templine;
+	if($linecount>=6)
+	{
+		for($i=0;$i<=$#CataVal;$i++)
+			{
+				$flag=0;
+				@ChangePowerInfo=split(/\//,$CataVal[$i]);
+				for($j=0;$j<=$#ChangePowerInfo;$j+=2)
+					{
+								if($linecount==($ChangePowerInfo[$j]+6))
+									{
+										$tempstr=$tempstr."\t"."$ChangePowerInfo[$j+1]\t=0\t=0";
+											#print FILE_DC_Specs_out "$templine"."\t"."$ChangePowerInfo[$j+1]\t=0\t=0";
+									}
+								else
+									{
+										$flag++;
+									}							
+					}
+				if($flag>=$#ChangePowerInfo/2)
+				{
+					$tempsubstr=$DCSPECVDDN[$linecount-2];
+					$tempsubstr=~s/\n+$//;
+					$tempsubstr=~s/\t+$//;					
+					$tempstr=$tempstr."\t".$tempsubstr;
+					}
+				#print  $DCSPECVDDN[$linecount];
+				#print FILE_DC_Specs_out "$templine"."\t"."$ChangePowerInfo[$j+1]\t=0\t=0";
+				
+				}
+			print FILE_DC_Specs_out "$tempstr\t\t\n";
+		}
+
+	if($linecount==2)		#生成新的catagory名字
+		{
+			$tempstr1=$templine;
+			
+			for($i=0;$i<=$#CataValName;$i++)
+				{
+					
+					$tempstr1=$tempstr1."\t\t\t".$CataValName[$i];
+					#print $tempstr1;
+				
+					}	
+			print FILE_DC_Specs_out "$tempstr1\n";		
+			$tempstr1="";
+		}
+	if($linecount==3)  #生成."Typ	Min	Max\t";行
+		{
+			$tempstr2=$templine;
+			$tempstr2=~s/Comment//;
+			$tempstr2=~s/Comm//;  #分两次将comment抹掉是因为搞不定，第一次总是抹不掉comm
+			#print "$tempstr2\n";
+			for($i=0;$i<=$#CataVal;$i++)
+				{
+					$tempstr2=$tempstr2."Typ	Min	Max\t";
+				
+					}	
+			print FILE_DC_Specs_out "$tempstr2"."Comment\n";		
+			$tempstr2="";
+		}
+	if($linecount==4)  #添加生成新catagory中的Vcoef行
+		{
+			$m=$DCSPECVDDN[2];
+			$m=~s/\n+$//;
+				$m=~s/^\s+//g;
+			$tempstr2=$templine;
+				$tempstr2=~s/\t*$//g;
+			for($i=0;$i<=$#CataVal;$i++)
+				{
+					$tempstr2=$tempstr2."\t".$m;
+				
+					}	
+			print FILE_DC_Specs_out "$tempstr2\n";		
+			$tempstr2="";
+		}
+	if($linecount==5)  #添加生成新catagory中的Vcoef_IO行
+		{
+			$m=$DCSPECVDDN[3];
+			$m=~s/\n+$//;
+				$m=~s/^\s+//g;
+			$tempstr2=$templine;
+				$tempstr2=~s/\t*$//g;
+			for($i=0;$i<=$#CataVal;$i++)
+				{
+					$tempstr2=$tempstr2."\t".$m;
+				
+					}	
+			print FILE_DC_Specs_out "$tempstr2\n";		
+			$tempstr2="";
+		}
+$linecount++;
+}
+$linecount=0;	
+close FILE_DC_Specs;
+	
+
+
+print 	FILE_TestInstanceDFT "DTTestInstancesSheet,version=2.4:platform=Jaguar:toprow=-1:leftcol=-1:rightcol=-1:tabcolor=16777215	Test Instances\n\n";
+print 	FILE_TestInstanceDFT "		Test Procedure			DC Specs		AC Specs		Sheet Parameters					Other Parameters																																																																																																																																			\n";
+print 	FILE_TestInstanceDFT "	Test Name	Type	Name	Called As	Category	Selector	Category	Selector	Time Sets	Edge Sets	Pin Levels	Mixed Signal Timing	ArgList	Arg1	Arg2	Arg3	Arg4	Arg5	Arg6	Arg7	Arg8	Arg9	Arg10	Arg11	Arg12	Arg13	Arg14	Arg15	Arg16	Arg17	Arg18	Arg19	Arg20	Arg21	Arg22	Arg23	Arg24	Arg25	Arg26	Arg27	Arg28	Arg29	Arg30	Arg31	Arg32	Arg33	Arg34	Arg35	Arg36	Arg37	Arg38	Arg39	Arg40	Arg41	Arg42	Arg43	Arg44	Arg45	Arg46	Arg47	Arg48	Arg49	Arg50	Arg51	Arg52	Arg53	Arg54	Arg55	Arg56	Arg57	Arg58	Arg59	Arg60	Arg61	Arg62	Arg63	Arg64	Arg65	Arg66	Arg67	Arg68	Arg69	Arg70	Arg71	Arg72	Arg73	Arg74	Arg75	Arg76	Arg77	Arg78	Arg79	Arg80	Arg81	Arg82	Arg83	Arg84	Arg85	Arg86	Arg87	Arg88	Arg89	Arg90	Arg91	Arg92	Arg93	Arg94	Arg95	Arg96	Arg97	Arg98	Arg99	Arg100	Arg101	Arg102	Arg103	Arg104	Arg105	Arg106	Arg107	Arg108	Arg109	Arg110	Arg111	Arg112	Arg113	Arg114	Arg115	Arg116	Arg117	Arg118	Arg119	Arg120	Arg121	Arg122	Arg123	Arg124	Arg125	Arg126	Arg127	Arg128	Arg129	Arg130	Comment	\n";
+for($i=0;$i<=$#InstancaArry;$i++)    #根据向量说明文件生成instance
+{
+	$templine=$InstancaArry[$i];
+	$templine=~s/^ +//;
+	$templine=~s/\n$//;
+	if($templine=~/(\w+.+)\_(R\d+)\_HI6290V100\_*(.*)\_setup\_*(.*)/)   #CHAIN_R01_HI6290V100_ananke_full_setup	
+		{
+			
+		}
+	$templine=~s/HI6290V100_//;#MBIST_HI6290V100_mdm_nche_0v75_SR01_VR01_burst
+	$templine=~s/(\_Burst$)|(\_burst$)//;#BSCAN_R01_Burst
+	$templine=~s/(\_R\d+)|(_SR\d+\_VR\d+)//;#MBIST_HI6290V100_mdm_nche_0v75_SR01_VR01_burst
+	$templine=~s/\_$//;#MBIST_HI6290V100_mdm_nche_0v75_SR01_VR01_burst
+	$templine="FC_".$templine;
+chomp($templine);
+print 	FILE_TestInstanceDFT "	$templine	VBT	A_Functional_vbt		$AddSpecCatAll[$i]	Sel0	Default	Sel0	$TIMArry[$i]		LVL_DFT			in_RelayMode_tl,in_TestPatName_PT,in_CheckPatPF_str,in_ConnectAllPins_bool,in_LoadLevels_bool,in_LoadTiming_bool,in_InitWaitTime_dbl	1	$InstancaArry[$i]		-1	-1	-1																																																																																																																													\n";	
+#print 	FILE_debug_out "	$templine	VBT	A_Functional_vbt		$AddSpecCatAll[$i]	Sel0	Default	Sel0	$TIMArry[$i]		LVL_DFT			in_RelayMode_tl,in_TestPatName_PT,in_CheckPatPF_str,in_ConnectAllPins_bool,in_LoadLevels_bool,in_LoadTiming_bool,in_InitWaitTime_dbl	1	$InstancaArry[$i]		-1	-1	-1																																																																																																																													\n";	
+	#test_case	VBT	A_Functional_vbt		Vcoef095/VIHLR/VOHLR	Sel0	Default	Sel0	TIM_DFT		LVL_DFT			in_TestPatName_PT,in_RelayMode_tl,in_CheckPatPF_str,in_ConnectAllPins_bool,in_LoadLevels_bool,in_LoadTiming_bool,in_InitWaitTime_dbl	aaa	1		-1	-1	-1																																																																																																																													
+}
+
+close FILE_DC_Power;
+print $#AddSpecCatAll;
+print $#InstancaArry;
+print $#TIMArry;
+
+
+for($i=0;$i<=$#uniqueeza10Cat;$i++)
+{
+	#print "$uniqueeza10Cat[$i]\n";
+	@temparrya10=split(/\//,$uniqueeza10Cat[$i]);
+	#$temstr=~s/\/$/$uniqueeza10CatValue[$i]/;
+	@temppinvoltage=split(/\//,$uniqueeza10CatValue[$i]);
+	for($j=0;$j<=$#temparrya10-3;$j++)#
+		{
+			print FILE_ForEZA10 "$uniqueeza10Cat[$i]\tPower\t$temppinvoltage[$j*2]\t$temppinvoltage[$j*2+1]\n";
+		
+			
+		}
+}
